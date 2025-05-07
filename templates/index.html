@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CP Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <script defer src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+        input[type="text"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #submissionsTable {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        #submissionsTable th, #submissionsTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #submissionsTable th {
+            background-color: #e9ecef;
+        }
+        #submissionsTable th.sortable:hover {
+            background-color: #dcdcdc;
+        }
+
+        /* Styles for Vertical Year Scroller */
+        #verticalYearScroller {
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Center items horizontally */
+        }
+        .year-item {
+            padding: 8px 12px;
+            margin: 2px 0;
+            cursor: pointer;
+            border-radius: 4px;
+            text-align: center;
+            width: 80%; /* Make items take some width */
+            transition: opacity 0.3s ease-in-out, background-color 0.2s ease;
+            opacity: 0.5; /* Default faded state */
+        }
+        .year-item:hover {
+            background-color: #f0f0f0;
+        }
+        .year-item.selected {
+            font-weight: bold;
+            background-color: #007bff;
+            color: white;
+            opacity: 1 !important; /* Ensure selected is fully visible */
+        }
+        .year-item.focused-scroll {
+             opacity: 1; /* For scroll-based focus, might be combined with selected or be separate */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans antialiased">
+    <div class="container mx-auto p-4 sm:p-6 md:p-8">
+
+        <!-- Header / Landing Section -->
+        <header class="text-center mb-8 md:mb-12">
+            <h1 class="text-4xl sm:text-5xl font-bold text-blue-600">CP Tracker</h1>
+            <p class="text-lg text-gray-600 mt-2">Track your competitive programming progress.</p>
+        </header>
+
+        <!-- Call to Action: Input and Button -->
+        <section id="fetch-section" class="max-w-xl mx-auto bg-white p-6 sm:p-8 rounded-lg shadow-md mb-8">
+            <div class="mb-4">
+                <label for="cfHandle" class="block text-sm font-medium text-gray-700 mb-1">Codeforces Handle</label>
+                <input type="text" id="cfHandle" name="cfHandle" placeholder="e.g., tourist"
+                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+            </div>
+            <button id="fetchButton"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                Fetch Submissions
+            </button>
+            <div id="loading-indicator" class="text-center mt-4 text-gray-500 hidden">
+                <!-- Updated SVG Spinner -->
+                <svg class="animate-spin h-6 w-6 text-blue-600 inline-block mr-2" viewBox="0 0 24 24">
+                    <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z" fill="currentColor"/>
+                </svg>
+                Loading submissions...
+            </div>
+            <div id="error-message" class="text-center mt-4 text-red-600 font-medium hidden"></div>
+        </section>
+
+        <!-- Dashboard Section: Charts and Year Scroller -->
+        <section id="dashboard-section" class="max-w-6xl mx-auto mb-8 hidden">
+            <h2 class="text-2xl sm:text-3xl font-semibold text-gray-700 mb-6 text-center">Profile Dashboard</h2>
+
+            <!-- Time Chart and Vertical Year Selector -->
+            <div id="timeChartWrapper" class="bg-white p-4 sm:p-6 rounded-lg shadow-md mb-6 md:flex md:items-start">
+                <div class="flex-grow md:mr-6 mb-6 md:mb-0">
+                    <div class="text-center mb-2 text-lg font-medium text-gray-600">Submissions Over Time - <span id="selectedYearDisplay" class="font-bold text-blue-600"></span></div>
+                    <div class="relative h-64 sm:h-80 md:h-96">
+                        <canvas id="submissionsOverTimeChart"></canvas>
+                    </div>
+                </div>
+                <div id="verticalYearScrollerContainer" class="flex-shrink-0 md:w-32">
+                    <div class="text-center font-semibold text-gray-600 mb-2">Year</div>
+                    <div id="verticalYearScroller" class="h-64 sm:h-80 md:h-96 overflow-y-auto border border-gray-300 rounded-md p-2 bg-gray-50 space-y-1">
+                        <!-- Year items will be populated here by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other Charts -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                    <h3 class="text-lg font-medium text-gray-600 mb-3 text-center">Problem Rating Distribution</h3>
+                    <div class="relative h-64 sm:h-72">
+                        <canvas id="problemRatingDistributionChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                    <h3 class="text-lg font-medium text-gray-600 mb-3 text-center">Language Usage</h3>
+                    <div class="relative h-60 sm:h-64 w-full max-w-xs mx-auto"> <!-- Adjusted for pie chart -->
+                        <canvas id="languageUsageChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md md:col-span-2"> <!-- Spans two columns on medium screens -->
+                    <h3 class="text-lg font-medium text-gray-600 mb-3 text-center">Problem Tag Frequency (Top 15)</h3>
+                     <div class="relative h-72 sm:h-96"> <!-- Increased height for horizontal bar -->
+                        <canvas id="problemTagsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- Collapsible Detailed Submissions & Filters Section -->
+        <details id="submissions-details-toggle" class="max-w-4xl mx-auto bg-white rounded-lg shadow-md mb-6 block">
+            <summary class="p-4 sm:p-6 cursor-pointer text-xl font-semibold text-gray-700 hover:bg-gray-50 rounded-t-lg list-none focus:outline-none">
+                <span class="select-none">Detailed Submissions & Filters</span>
+            </summary>
+
+            <!-- Filter and Sort Controls -->
+            <section id="controls-section" class="p-4 sm:p-6 border-t border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Filter & Sort Detailed List</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                    <!-- Rating Filter -->
+                    <div>
+                        <label for="minRating" class="block text-sm font-medium text-gray-700">Min Rating</label>
+                        <input type="number" id="minRating" name="minRating" placeholder="e.g., 800" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="maxRating" class="block text-sm font-medium text-gray-700">Max Rating</label>
+                        <input type="number" id="maxRating" name="maxRating" placeholder="e.g., 1600" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+
+                    <!-- Tag Filter (populated by JS) -->
+                    <div>
+                        <label for="tagFilter" class="block text-sm font-medium text-gray-700">Tags (select multiple)</label>
+                        <select id="tagFilter" name="tagFilter" multiple class="mt-1 block w-full h-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <!-- Options populated by JS -->
+                        </select>
+                    </div>
+
+                    <!-- Language Filter (populated by JS) -->
+                    <div>
+                        <label for="languageFilter" class="block text-sm font-medium text-gray-700">Language</label>
+                        <select id="languageFilter" name="languageFilter" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="">All Languages</option>
+                            <!-- Options populated by JS -->
+                        </select>
+                    </div>
+
+                    <!-- Sort Controls -->
+                    <div>
+                        <label for="sortBy" class="block text-sm font-medium text-gray-700">Sort By</label>
+                        <select id="sortBy" name="sortBy" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="creation_time_seconds">Date</option>
+                            <option value="problem_rating">Rating</option>
+                            <option value="problem_name">Name (A-Z)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="sortOrder" class="block text-sm font-medium text-gray-700">Order</label>
+                        <select id="sortOrder" name="sortOrder" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="desc">Descending</option>
+                            <option value="asc">Ascending</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button id="applyFiltersButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm">Apply Filters & Sort</button>
+                    <button id="resetFiltersButton" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-md shadow-sm">Reset</button>
+                </div>
+            </section>
+
+            <!-- Submissions Display -->
+            <section id="submissions-display" class="p-4 sm:p-6">
+                <h2 id="submissions-title" class="text-2xl sm:text-3xl font-semibold text-gray-700 mb-6 text-center hidden">Solved Problems (Detailed List)</h2>
+                <div id="submissions-list" class="space-y-4">
+                    <!-- Submissions will be injected here by JavaScript -->
+                </div>
+                <div id="empty-state-message" class="text-center text-gray-500 mt-6 hidden py-8">
+                     <!-- SVG and message will be injected here by JavaScript -->
+                </div>
+                <!-- Pagination Controls -->
+                <div id="pagination-controls" class="flex justify-center items-center space-x-2 mt-8 pb-4">
+                    <!-- Pagination buttons will be injected here -->
+                </div>
+            </section>
+        </details>
+
+        <footer class="text-center mt-12 py-4 border-t border-gray-300">
+            <p class="text-sm text-gray-500">&copy; 2024 CP Tracker. Theme: Light (Dark theme toggle coming soon!).</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let currentSubmissions = []; // To store fetched submissions globally for sorting
+        let sortState = { key: null, asc: true }; // To track current sort
+
+        let submissionsOverTimeChartInstance = null;
+        let problemRatingDistributionChartInstance = null;
+        let languageUsageChartInstance = null;
+        let problemTagsChartInstance = null; // Instance for the new chart
+
+        let currentSelectedYear = null; // For the time chart
+        let allAvailableYears = [];   // For the time chart
+        let currentFilteredSubmissions = []; // To store the result of filtering for the table
+
+        // Filter DOM Elements
+        const filterLanguageInput = document.getElementById('filterLanguage');
+        const filterMinRatingInput = document.getElementById('filterMinRating');
+        const filterMaxRatingInput = document.getElementById('filterMaxRating');
+        const filterTagsInput = document.getElementById('filterTags');
+        const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+        document.getElementById('cfHandleForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const cfHandle = document.getElementById('cfHandle').value;
+            const submissionsTableBody = document.getElementById('submissionsTable').getElementsByTagName('tbody')[0];
+            
+            let messageDiv = document.getElementById('message');
+            if (!messageDiv) {
+                messageDiv = document.createElement('div');
+                messageDiv.id = 'message';
+                const form = document.getElementById('cfHandleForm');
+                form.parentNode.insertBefore(messageDiv, form.nextSibling.nextSibling);
+            }
+
+            const loaderDiv = document.getElementById('loader');
+            
+            submissionsTableBody.innerHTML = '';
+            messageDiv.textContent = ''; 
+            messageDiv.style.color = 'red'; 
+
+            if (!cfHandle) {
+                messageDiv.textContent = 'Please enter a Codeforces handle.';
+                return;
+            }
+
+            if (!loaderDiv.parentNode) {
+                const form = document.getElementById('cfHandleForm');
+                form.parentNode.insertBefore(loaderDiv, form.nextSibling);
+            }
+
+            messageDiv.style.color = 'red'; 
+
+            loaderDiv.style.display = 'block';
+            messageDiv.textContent = '';
+
+            try {
+                const response = await fetch('/fetch_submissions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ cfHandle: cfHandle })
+                });
+
+                const result = await response.json();
+                currentSubmissions = []; // Reset on new fetch
+
+                if (response.ok && result.status === 'OK') {
+                    if (result.submissions && result.submissions.length > 0) {
+                        currentSubmissions = result.submissions; 
+                        clearTableFilters(); // Apply no filters initially, which shows all & resets inputs
+                        updateCharts(currentSubmissions);
+                        setupYearControlsAndRenderTimeChart(currentSubmissions);
+                        messageDiv.textContent = 'Submissions fetched successfully!';
+                        messageDiv.style.color = 'green';
+                    } else {
+                        currentSubmissions = [];
+                        renderTable([]); 
+                        updateCharts([]); 
+                        setupYearControlsAndRenderTimeChart([]);
+                        messageDiv.textContent = 'No accepted submissions found or handle does not exist.';
+                    }
+                } else {
+                    renderTable([]); // Clear table
+                    updateCharts([]); // Clear charts
+                    messageDiv.textContent = result.message || 'An error occurred while fetching submissions.';
+                }
+            } catch (error) {
+                renderTable([]); // Clear table
+                updateCharts([]); // Clear charts
+                console.error('Error:', error);
+                messageDiv.textContent = 'An error occurred. Check the console for details.';
+            } finally {
+                loaderDiv.style.display = 'none';
+            }
+        });
+
+        function renderTable(submissionsToRender) {
+            const submissionsTableBody = document.getElementById('submissionsTable').getElementsByTagName('tbody')[0];
+            submissionsTableBody.innerHTML = ''; // Clear existing rows
+
+            submissionsToRender.forEach(sub => {
+                const row = submissionsTableBody.insertRow();
+                const cellProblemId = row.insertCell();
+                const cellProblemName = row.insertCell();
+                const cellVerdict = row.insertCell();
+                const cellLanguage = row.insertCell();
+                const cellSubmissionTime = row.insertCell();
+                const cellRating = row.insertCell();
+
+                cellProblemId.textContent = sub.problem_id;
+                
+                let problemLink;
+                if (sub.contest_id >= 100000) {
+                    problemLink = `https://codeforces.com/gym/${sub.contest_id}/problem/${sub.problem_index}`;
+                } else {
+                    problemLink = `https://codeforces.com/problemset/problem/${sub.contest_id}/${sub.problem_index}`;
+                }
+                cellProblemName.innerHTML = `<a href="${problemLink}" target="_blank">${sub.problem_name || 'N/A'}</a>`;
+                cellVerdict.textContent = sub.verdict;
+                cellLanguage.textContent = sub.language;
+                
+                const submissionDate = new Date(sub.creation_time_seconds * 1000);
+                cellSubmissionTime.textContent = submissionDate.toLocaleString();
+                cellSubmissionTime.dataset.timestamp = sub.creation_time_seconds;
+
+                cellRating.textContent = sub.problem_rating === null || sub.problem_rating === undefined ? "N/A" : sub.problem_rating;
+            });
+        }
+
+        document.querySelectorAll('#submissionsTable th.sortable').forEach(headerCell => {
+            headerCell.addEventListener('click', () => {
+                const sortKey = headerCell.dataset.sortKey;
+                if (sortState.key === sortKey) {
+                    sortState.asc = !sortState.asc; // Toggle direction
+                } else {
+                    sortState.key = sortKey;
+                    sortState.asc = true; // Default to ascending for new key
+                }
+                sortSubmissions();
+            });
+        });
+
+        function sortSubmissions() {
+            if (!sortState.key) return;
+
+            // Sort the *currently displayed* filtered submissions
+            currentFilteredSubmissions.sort((a, b) => { 
+                let valA = a[sortState.key];
+                let valB = b[sortState.key];
+
+                if (sortState.key === 'problem_rating') { 
+                    valA = valA === null || valA === undefined ? (sortState.asc ? Infinity : -Infinity) : valA;
+                    valB = valB === null || valB === undefined ? (sortState.asc ? Infinity : -Infinity) : valB;
+                }
+
+                if (valA < valB) return sortState.asc ? -1 : 1;
+                if (valA > valB) return sortState.asc ? 1 : -1;
+                return 0;
+            });
+            renderTable(currentFilteredSubmissions); // Re-render the table with the sorted filtered data
+        }
+
+        function updateCharts(submissions) {
+            // Destroy existing charts (except time chart, handled by its own function now)
+            if (problemRatingDistributionChartInstance) problemRatingDistributionChartInstance.destroy(); 
+            if (languageUsageChartInstance) languageUsageChartInstance.destroy();
+            if (problemTagsChartInstance) problemTagsChartInstance.destroy(); 
+
+            if (!submissions || submissions.length === 0) {
+                document.getElementById('chartsContainer').style.display = 'none';
+                 // Ensure year controls are also cleared/hidden if no data
+                document.getElementById('verticalYearScroller').innerHTML = '';
+                if(submissionsOverTimeChartInstance) submissionsOverTimeChartInstance.destroy();
+                submissionsOverTimeChartInstance = null; // Explicitly nullify
+                const timeCanvas = document.getElementById('submissionsOverTimeChart');
+                const timeCtx = timeCanvas.getContext('2d');
+                timeCtx.clearRect(0, 0, timeCanvas.width, timeCanvas.height);
+                return;
+            }
+            document.getElementById('chartsContainer').style.display = 'block';
+
+            // Setup year controls and render time chart (this will handle its own destruction)
+            setupYearControlsAndRenderTimeChart(submissions);
+
+            // --- Generate other charts using the full submissions list ---
+
+            // 2. Problem Rating Distribution (Bar Chart)
+            const ratingBuckets = {
+                '<1000': 0, '1000-1199': 0, '1200-1399': 0, '1400-1599': 0, '1600-1799': 0, '1800-1999': 0, '2000-2199': 0, '2200-2399':0, '2400-2599':0, '2600-2799':0, '2800-2999':0, '>=3000': 0
+            };
+            submissions.forEach(sub => {
+                const rating = sub.problem_rating;
+                if (rating === null || rating === undefined) return; 
+                if (rating < 1000) ratingBuckets['<1000']++;
+                else if (rating < 1200) ratingBuckets['1000-1199']++;
+                else if (rating < 1400) ratingBuckets['1200-1399']++;
+                else if (rating < 1600) ratingBuckets['1400-1599']++;
+                else if (rating < 1800) ratingBuckets['1600-1799']++;
+                else if (rating < 2000) ratingBuckets['1800-1999']++;
+                else if (rating < 2200) ratingBuckets['2000-2199']++;
+                else if (rating < 2400) ratingBuckets['2200-2399']++;
+                else if (rating < 2600) ratingBuckets['2400-2599']++;
+                else if (rating < 2800) ratingBuckets['2600-2799']++;
+                else if (rating < 3000) ratingBuckets['2800-2999']++;
+                else ratingBuckets['>=3000']++;
+            });
+            const ratingLabels = Object.keys(ratingBuckets);
+            const ratingData = Object.values(ratingBuckets);
+            problemRatingDistributionChartInstance = new Chart(
+                document.getElementById('problemRatingDistributionChart'),
+                {
+                    type: 'bar',
+                    data: {
+                        labels: ratingLabels,
+                        datasets: [{
+                            label: 'Problem Rating Distribution',
+                            data: ratingData,
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, responsive: true, maintainAspectRatio: true }
+                }
+            );
+
+            // 3. Language Usage (Pie Chart)
+            const langUsage = {};
+            submissions.forEach(sub => {
+                langUsage[sub.language] = (langUsage[sub.language] || 0) + 1;
+            });
+            const langLabels = Object.keys(langUsage);
+            const langData = Object.values(langUsage);
+            languageUsageChartInstance = new Chart(
+                document.getElementById('languageUsageChart'),
+                {
+                    type: 'pie',
+                    data: {
+                        labels: langLabels,
+                        datasets: [{
+                            label: 'Language Usage',
+                            data: langData,
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)', 'rgba(255, 206, 86, 0.7)',
+                                'rgba(75, 192, 192, 0.7)', 'rgba(153, 102, 255, 0.7)', 'rgba(255, 159, 64, 0.7)',
+                                'rgba(199, 199, 199, 0.7)', 'rgba(83, 102, 255, 0.7)'
+                            ],
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: true }
+                }
+            );
+
+            // 4. Problem Tags Distribution (Horizontal Bar Chart)
+            const tagCounts = {};
+            submissions.forEach(sub => {
+                if (sub.problem_tags && sub.problem_tags.length > 0) {
+                    const tags = sub.problem_tags.split(',');
+                    tags.forEach(tag => {
+                        tag = tag.trim();
+                        if (tag) { // Ensure tag is not empty after trim
+                           tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                        }
+                    });
+                }
+            });
+
+            // Sort tags by frequency and take top N (e.g., Top 15)
+            const sortedTags = Object.entries(tagCounts)
+                .sort(([,a],[,b]) => b-a)
+                .slice(0, 15); // Show top 15 tags
+
+            const tagLabels = sortedTags.map(entry => entry[0]);
+            const tagData = sortedTags.map(entry => entry[1]);
+
+            if (tagLabels.length > 0) { // Only create chart if there are tags to show
+                problemTagsChartInstance = new Chart(
+                    document.getElementById('problemTagsChart'),
+                    {
+                        type: 'bar', // Horizontal bar chart by setting indexAxis: 'y'
+                        data: {
+                            labels: tagLabels,
+                            datasets: [{
+                                label: 'Problem Tag Frequency (Top 15)',
+                                data: tagData,
+                                backgroundColor: 'rgba(255, 159, 64, 0.6)',
+                                borderColor: 'rgba(255, 159, 64, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y', // This makes the bar chart horizontal
+                            responsive: true,
+                            maintainAspectRatio: true, // Adjust as needed, might need to set to false for better control
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    ticks: { precision: 0 } 
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true
+                                }
+                            }
+                        }
+                    }
+                );
+            } else {
+                 // Optionally hide the canvas or show a message if no tags are found
+                const problemTagsCanvas = document.getElementById('problemTagsChart');
+                const ctx = problemTagsCanvas.getContext('2d');
+                ctx.clearRect(0, 0, problemTagsCanvas.width, problemTagsCanvas.height);
+                // Or you can hide problemTagsCanvas.style.display = 'none';
+            }
+        }
+
+        function setupYearControlsAndRenderTimeChart(submissions) {
+            allAvailableYears = [...new Set(submissions.map(s => new Date(s.creation_time_seconds * 1000).getFullYear()))].sort((a, b) => b - a); // Descending
+            
+            const verticalYearScroller = document.getElementById('verticalYearScroller');
+            verticalYearScroller.innerHTML = ''; // Clear old items
+            verticalYearScroller.removeEventListener('scroll', handleYearScrollDebounced); // Corrected listener removal
+
+            if (allAvailableYears.length === 0) {
+                document.getElementById('selectedYearDisplay').textContent = 'N/A';
+                renderTimeChartForSelectedYear([]); 
+                return;
+            }
+
+            allAvailableYears.forEach(year => {
+                const item = document.createElement('div');
+                item.textContent = year;
+                item.className = 'year-item';
+                item.dataset.year = year;
+                item.onclick = () => {
+                    currentSelectedYear = year;
+                    document.getElementById('selectedYearDisplay').textContent = year;
+                    document.querySelectorAll('.year-item').forEach(i => i.classList.remove('selected'));
+                    item.classList.add('selected');
+                    verticalYearScroller.scrollTo({
+                        top: item.offsetTop - (verticalYearScroller.clientHeight / 2) + (item.clientHeight / 2),
+                        behavior: 'smooth'
+                    });
+                    renderTimeChartForSelectedYear(currentSubmissions);
+                    // Update opacities after click and scroll settles a bit
+                    setTimeout(updateYearItemOpacities, 300); // Give scroll time to potentially finish
+                };
+                verticalYearScroller.appendChild(item);
+            });
+
+            if (!currentSelectedYear || !allAvailableYears.includes(currentSelectedYear)){
+                 currentSelectedYear = allAvailableYears[0]; 
+            }
+            document.getElementById('selectedYearDisplay').textContent = currentSelectedYear;
+            
+            const currentYearItem = Array.from(verticalYearScroller.children).find(i => parseInt(i.dataset.year) === currentSelectedYear);
+            if(currentYearItem) {
+                currentYearItem.classList.add('selected');
+                // Scroll initial item to center
+                setTimeout(() => { // Timeout to allow layout to settle
+                    verticalYearScroller.scrollTo({
+                        top: currentYearItem.offsetTop - (verticalYearScroller.clientHeight / 2) + (currentYearItem.clientHeight / 2),
+                        behavior: 'auto' // Can be 'smooth' if preferred for initial
+                    });
+                    updateYearItemOpacities(); // Update opacities on initial load
+                }, 0);
+            }
+            
+            verticalYearScroller.addEventListener('scroll', handleYearScrollDebounced);
+            renderTimeChartForSelectedYear(submissions); 
+        }
+
+        let scrollTimeout;
+        const handleYearScrollDebounced = () => {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(updateYearItemOpacities, 150); // Debounce opacity updates
+        };
+
+        function updateYearItemOpacities() {
+            const scroller = document.getElementById('verticalYearScroller');
+            if (!scroller) return;
+            const scrollerRect = scroller.getBoundingClientRect();
+            const scrollerCenterY = scrollerRect.top + scrollerRect.height / 2;
+
+            let closestItemToCenter = null;
+            let minDistance = Infinity;
+
+            scroller.childNodes.forEach(item => {
+                if (item.nodeType !== 1) return; // Ensure it's an element
+                const itemRect = item.getBoundingClientRect();
+                const itemCenterY = itemRect.top + itemRect.height / 2;
+                const distance = Math.abs(scrollerCenterY - itemCenterY);
+
+                // Fade based on distance from center
+                // Max distance for full fade can be roughly half the scroller height
+                const maxVisibleDistance = scrollerRect.height / 2.5; // Adjust for desired fade spread
+                let opacity = 1 - (distance / maxVisibleDistance);
+                opacity = Math.max(0.1, Math.min(1, opacity)); // Clamp opacity between 0.1 and 1
+                
+                item.style.opacity = opacity;
+                item.classList.remove('focused-scroll'); // Remove from all first
+
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestItemToCenter = item;
+                }
+            });
+
+            if (closestItemToCenter) {
+                closestItemToCenter.classList.add('focused-scroll');
+                closestItemToCenter.style.opacity = 1; // Ensure the most centered is fully opaque
+                
+                // Optional: Update chart based on the *visually centered* item on scroll stop
+                // This could be too aggressive if user is just flicking through.
+                // const focusedYear = parseInt(closestItemToCenter.dataset.year);
+                // if (focusedYear !== currentSelectedYear && !closestItemToCenter.classList.contains('selected')) {
+                //    console.log("Scroll focused on new year: ", focusedYear, "applying visual only");
+                //    // To avoid chart thrashing, we primarily update chart on click.
+                //    // If you want scroll to also change selection, then update currentSelectedYear and re-render.
+                // }
+            }
+        }
+
+        function renderTimeChartForSelectedYear(allSubmissions) {
+            if (submissionsOverTimeChartInstance) {
+                submissionsOverTimeChartInstance.destroy();
+                submissionsOverTimeChartInstance = null;
+            }
+
+            const timeCanvas = document.getElementById('submissionsOverTimeChart');
+            const timeCtx = timeCanvas.getContext('2d');
+            timeCtx.clearRect(0, 0, timeCanvas.width, timeCanvas.height);
+
+            if (!currentSelectedYear || !allSubmissions || allSubmissions.length === 0) {
+                return; // Nothing to render for time chart
+            }
+
+            const weeklyDataForDisplayYear = {}; // Key: "YYYY-MM-DD(start)_to_YYYY-MM-DD(end)", Value: count
+
+            allSubmissions.forEach(sub => {
+                const subDateObj = new Date(sub.creation_time_seconds * 1000);
+                
+                // Determine the calendar week (Mon-Sun) of the submission
+                const dayOfWeek = subDateObj.getDay(); // 0 (Sun) to 6 (Sat)
+                const mondayOfCalendarWeek = new Date(subDateObj);
+                mondayOfCalendarWeek.setDate(subDateObj.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+                mondayOfCalendarWeek.setHours(0, 0, 0, 0);
+
+                const sundayOfCalendarWeek = new Date(mondayOfCalendarWeek);
+                sundayOfCalendarWeek.setDate(mondayOfCalendarWeek.getDate() + 6);
+                sundayOfCalendarWeek.setHours(0, 0, 0, 0);
+
+                // Determine the actual period this submission contributes to for the currentSelectedYear
+                const yearStartDate = new Date(currentSelectedYear, 0, 1); // Jan 1st of selected year
+                const yearEndDate = new Date(currentSelectedYear, 11, 31); // Dec 31st of selected year
+
+                const effectivePeriodStart = new Date(Math.max(mondayOfCalendarWeek.getTime(), yearStartDate.getTime()));
+                const effectivePeriodEnd = new Date(Math.min(sundayOfCalendarWeek.getTime(), yearEndDate.getTime()));
+                
+                // Normalize submission date to compare at day level
+                const normalizedSubDate = new Date(subDateObj);
+                normalizedSubDate.setHours(0,0,0,0);
+
+                // Count submission if its date is within the effective period AND period is valid (start <= end)
+                if (normalizedSubDate.getFullYear() === currentSelectedYear && 
+                    normalizedSubDate.getTime() >= effectivePeriodStart.getTime() && 
+                    normalizedSubDate.getTime() <= effectivePeriodEnd.getTime() &&
+                    effectivePeriodStart.getTime() <= effectivePeriodEnd.getTime())
+                {
+                    const startStr = `${effectivePeriodStart.getFullYear()}-${String(effectivePeriodStart.getMonth() + 1).padStart(2, '0')}-${String(effectivePeriodStart.getDate()).padStart(2, '0')}`;
+                    const endStr = `${effectivePeriodEnd.getFullYear()}-${String(effectivePeriodEnd.getMonth() + 1).padStart(2, '0')}-${String(effectivePeriodEnd.getDate()).padStart(2, '0')}`;
+                    const periodKey = `${startStr}_to_${endStr}`;
+                    weeklyDataForDisplayYear[periodKey] = (weeklyDataForDisplayYear[periodKey] || 0) + 1;
+                }
+            });
+
+            const sortedPeriodKeys = Object.keys(weeklyDataForDisplayYear).sort((a, b) => {
+                const startDateA = new Date(a.split('_to_')[0]);
+                const startDateB = new Date(b.split('_to_')[0]);
+                return startDateA.getTime() - startDateB.getTime();
+            });
+
+            if (sortedPeriodKeys.length === 0) {
+                // Can show a message like "No submissions for [year]"
+                return;
+            }
+
+            const periodLabels = sortedPeriodKeys.map(key => {
+                const [startStr, endStr] = key.split('_to_');
+                const startDate = new Date(startStr);
+                const endDate = new Date(endStr);
+                const dayDifference = (endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24);
+                if (startDate.getDay() === 1 && dayDifference === 6) { // It's a Monday and period is 6 days long (Mon-Sun)
+                    return `Week of ${startStr}`;
+                }
+                return `${startStr} to ${endStr}`;
+            });
+            const periodData = sortedPeriodKeys.map(key => weeklyDataForDisplayYear[key]);
+
+            submissionsOverTimeChartInstance = new Chart(timeCtx, { // Use timeCtx directly
+                type: 'line',
+                data: {
+                    labels: periodLabels,
+                    datasets: [{
+                        label: `Solved Problems per Period (${currentSelectedYear || 'N/A'})`,
+                        data: periodData,
+                        fill: false,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+
+        applyFiltersBtn.addEventListener('click', applyTableFilters);
+        clearFiltersBtn.addEventListener('click', clearTableFilters);
+
+        function applyTableFilters() {
+            const langFilter = filterLanguageInput.value.trim().toLowerCase();
+            const minRatingFilter = filterMinRatingInput.value ? parseInt(filterMinRatingInput.value) : null;
+            const maxRatingFilter = filterMaxRatingInput.value ? parseInt(filterMaxRatingInput.value) : null;
+            const tagsFilter = filterTagsInput.value.trim().toLowerCase().split(',').map(t => t.trim()).filter(t => t);
+
+            currentFilteredSubmissions = currentSubmissions.filter(sub => {
+                let passLang = true;
+                let passRating = true;
+                let passTags = true;
+
+                if (langFilter) {
+                    passLang = sub.language && sub.language.toLowerCase().includes(langFilter);
+                }
+
+                if (minRatingFilter !== null && (sub.problem_rating === null || sub.problem_rating < minRatingFilter)) {
+                    passRating = false;
+                }
+                if (maxRatingFilter !== null && (sub.problem_rating === null || sub.problem_rating > maxRatingFilter)) {
+                    passRating = false;
+                }
+
+                if (tagsFilter.length > 0) {
+                    if (!sub.problem_tags || sub.problem_tags.length === 0) {
+                        passTags = false;
+                    } else {
+                        const problemTags = sub.problem_tags.toLowerCase().split(',').map(t => t.trim());
+                        passTags = tagsFilter.some(filterTag => problemTags.includes(filterTag));
+                    }
+                }
+                return passLang && passRating && passTags;
+            });
+            sortState = { key: null, asc: true }; // Reset sort state when filters change
+            renderTable(currentFilteredSubmissions);
+        }
+
+        function clearTableFilters() {
+            filterLanguageInput.value = '';
+            filterMinRatingInput.value = '';
+            filterMaxRatingInput.value = '';
+            filterTagsInput.value = '';
+            
+            currentFilteredSubmissions = [...currentSubmissions]; // Show all original submissions
+            sortState = { key: null, asc: true }; // Reset sort state
+            renderTable(currentFilteredSubmissions);
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,119 @@
+/* Add any custom styles here that are not covered by Tailwind CSS */
+
+/* Example: Define a specific body font if desired */
+/*
+body {
+    font-family: 'Inter', sans-serif; 
+}
+*/
+
+/* You can add more specific component styles or overrides below */
+
+/* Fade-in animation for newly loaded submission cards */
+.fade-in {
+    animation: fadeInAnimation 0.5s ease-in-out forwards;
+}
+
+@keyframes fadeInAnimation {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Styles for Filter/Sort Controls Section if needed beyond Tailwind */
+#controls-section select[multiple] {
+    /* Tailwind provides good defaults, but you might want to adjust height or appearance */
+    min-height: 8rem; /* Ensure multi-select for tags is a decent size */
+}
+
+/* Enhanced Error Message Styling (already applied via JS, but good to have as a class definition) */
+.error-message-styled {
+    /* These Tailwind classes are added by JS: p-3 bg-red-100 border border-red-400 rounded-md */
+    /* You can add more specific styles here if needed */
+    text-align: center;
+    font-weight: 500;
+}
+
+/* Styling for the empty state message container */
+#empty-state-message svg {
+    /* Ensure SVG scales well if you use different sized ones */
+    /* margin-bottom: 1rem; /* Tailwind mb-4 is used in JS */
+}
+
+#empty-state-message p {
+    margin-bottom: 0.5rem;
+}
+
+/* Styles for Vertical Year Scroller */
+#verticalYearScrollerContainer {
+    /* Tailwind classes handle most of this now in HTML */
+}
+
+#verticalYearScroller .year-item {
+    padding: 0.5rem 0.75rem; /* p-2 px-3 */
+    margin: 0.125rem 0; /* space-y-1 in parent */
+    cursor: pointer;
+    border-radius: 0.375rem; /* rounded-md */
+    text-align: center;
+    width: 100%; 
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, opacity 0.3s ease-in-out;
+    opacity: 0.6;
+    font-weight: 500; /* medium */
+}
+
+#verticalYearScroller .year-item:hover {
+    background-color: #e5e7eb; /* Tailwind gray-200 */
+    opacity: 1;
+}
+
+#verticalYearScroller .year-item.selected {
+    font-weight: 700; /* bold */
+    background-color: #3b82f6; /* Tailwind blue-500 */
+    color: white;
+    opacity: 1 !important; 
+}
+
+#verticalYearScroller .year-item.focused-scroll {
+    opacity: 1; 
+}
+
+
+/* Styles for Pagination Controls */
+#pagination-controls button, #pagination-controls span {
+    padding: 0.5rem 0.75rem; /* py-2 px-3 */
+    border: 1px solid #d1d5db; /* Tailwind gray-300 */
+    background-color: white;
+    color: #374151; /* Tailwind gray-700 */
+    border-radius: 0.375rem; /* rounded-md */
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    margin: 0 0.25rem; /* mx-1 */
+}
+
+#pagination-controls button:hover:not([disabled]) {
+    background-color: #f3f4f6; /* Tailwind gray-100 */
+}
+
+#pagination-controls button[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#pagination-controls span.current-page {
+    background-color: #3b82f6; /* Tailwind blue-500 */
+    color: white;
+    font-weight: 600; /* semibold */
+    border-color: #3b82f6;
+}
+
+/* Ensure summary marker (arrow) is hidden for custom styling if needed, though Tailwind list-none helps */
+#submissions-details-toggle > summary::marker {
+    display: none; /* Using list-none on summary in HTML now */
+}
+#submissions-details-toggle > summary::-webkit-details-marker {
+    display: none;  /* Using list-none on summary in HTML now */
+} 
